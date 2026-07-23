@@ -1,0 +1,30 @@
+services:
+  # 代理网关：mihomo(clash.meta 内核)。直接读取 ./nodes/clash.yaml 里的节点。
+  # mixed-port 10800 同时提供 http 与 socks5，覆盖浏览器插件 / CLI(HTTP_PROXY) / 桌面 app。
+  gateway:
+    image: metacubex/mihomo:latest
+    container_name: ai-proxy-gateway
+    restart: unless-stopped
+    network_mode: host          # 直接用宿主机网络，员工按宿主机 IP:10800 连接
+    volumes:
+      - ./config.yaml:/root/.config/mihomo/config.yaml:ro
+      - ./nodes:/root/.config/mihomo/nodes:ro    # 你的 clash 节点文件放这里
+    # 如需限制端口而非 host 网络，去掉 network_mode 并改用 ports:
+    #   - "10800:10800"   # http + socks5 (mixed-port)
+    #   - "9090:9090"     # 管理 API(仅本机访问建议)
+
+  # PAC 文件服务：给桌面 app / 操作系统级自动代理用(:19000/proxy.pac)。
+  # 用 nginx 的 envsubst 把 GATEWAY_ADDR 注入 PAC 模板，改网关地址只需改 .env。
+  pac:
+    image: nginx:alpine
+    container_name: ai-proxy-pac
+    restart: unless-stopped
+    ports:
+      - "19000:80"
+    environment:
+      - GATEWAY_ADDR=${GATEWAY_ADDR:?请在 .env 里设置网关地址，例如 gateway.corp.example.com:10800}
+      # 把 PAC 模板渲染结果输出到网站根目录，nginx.conf 里用 alias 指向它
+      - NGINX_ENVSUBST_OUTPUT_DIR=/usr/share/nginx/html
+    volumes:
+      - ./www/proxy.pac.template:/etc/nginx/templates/proxy.pac.template:ro
+      - ./www/nginx.conf:/etc/nginx/conf.d/default.conf:ro

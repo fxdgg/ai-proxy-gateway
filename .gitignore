@@ -1,0 +1,7 @@
+.env
+nodes/clash.yaml
+nodes/ai.yaml
+nodes/*.yaml
+!nodes/clash.example.yaml
+!nodes/ai.example.yaml
+*.log
