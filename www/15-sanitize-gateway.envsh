@@ -1,0 +1,7 @@
+# 由 nginx 官方 entrypoint 在 envsubst 之前 source（*.envsh 会被 source）。
+# 作用：剥掉用户在 GATEWAY_ADDR 里可能误加的 http(s):// 前缀和结尾斜杠。
+# 原因：PAC 的 PROXY 指令只接受 host:port，带 scheme 会导致 PAC 失效。
+GATEWAY_ADDR="${GATEWAY_ADDR#http://}"
+GATEWAY_ADDR="${GATEWAY_ADDR#https://}"
+GATEWAY_ADDR="${GATEWAY_ADDR%/}"
+export GATEWAY_ADDR
