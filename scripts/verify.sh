@@ -45,35 +45,61 @@ check_group AI-FIXED
 check_group GEN-ROTATE
 check_group AI-STICKY
 
-# 3) 测试终端出口（是否静态住宅 IP）——等价于终端设了 HTTP_PROXY 后 curl ipinfo.io
+# 住宅 vs 机房 IP —— 关键词启发式判断（精确判定需付费 API 的 privacy/company 字段）
+classify_org() {
+  local lc; lc=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  if printf '%s' "$lc" | grep -Eq 'akamai|linode|amazon|aws|google|azure|digitalocean|vultr|choopa|ovh|hetzner|cloudflare|m247|leaseweb|contabo|oracle|gcore|datacamp|colocross|constant|data ?cent|cloud|hosting|hostin|vps|idc|server'; then
+    echo "机房/数据中心 IP（非住宅）❌"
+  elif printf '%s' "$lc" | grep -Eq 'comcast|at&t|verizon|spectrum|charter|cox communi|centurylink|frontier|t-mobile|xfinity|residential|broadband|cable|fios|fiber|dsl'; then
+    echo "住宅 IP ✅"
+  else
+    echo "未知类型，需人工确认（org=$1）"
+  fi
+}
+
+# 3) 终端出口 IP + 住宅/机房判定（等价于终端设 HTTP_PROXY 后 curl ipinfo.io）
 hr
-echo "▶ 测试终端走的是否为静态住宅 IP：curl -x $GATEWAY ipinfo.io"
-ipinfo=$(curl -fsS -x "http://$GATEWAY" --max-time 15 https://ipinfo.io/json 2>/dev/null)
+echo "▶ 终端出口（curl -x $GATEWAY ipinfo.io）——是否静态住宅 IP："
+ipinfo=$(curl -fsS -x "http://$GATEWAY" --max-time 20 https://ipinfo.io/json 2>/dev/null)
 if [ -n "$ipinfo" ]; then
-  echo "$ipinfo" | jq -r '"  IP: \(.ip)\n  地区: \(.country) \(.region) \(.city)\n  ISP/组织: \(.org)"' 2>/dev/null || echo "$ipinfo"
-  echo "  提示：ISP/组织若为住宅运营商(如 Comcast/AT&T/Verizon 等)则为住宅 IP；"
-  echo "        若为机房厂商(如 Amazon/Google/DigitalOcean/OVH 等)则是数据中心 IP。"
+  ip=$(echo "$ipinfo" | jq -r '.ip'); org=$(echo "$ipinfo" | jq -r '.org')
+  echo "  IP: $ip   地区: $(echo "$ipinfo" | jq -r '"\(.country) \(.region) \(.city)"')"
+  echo "  ISP/组织: $org"
+  echo "  ▶ 类型判定: $(classify_org "$org")"
 else
   echo "  ⚠ 经网关请求失败：检查网关是否在 $GATEWAY 监听、节点是否可用。"
 fi
 
-# 4) 测试 Claude 出口（是否静态住宅 IP）——claude.ai 的 Cloudflare trace
-hr
-echo "▶ 测试 Claude 走的是否为静态住宅 IP：curl -x $GATEWAY https://claude.ai/cdn-cgi/trace"
-trace=$(curl -fsS -x "http://$GATEWAY" --max-time 15 https://claude.ai/cdn-cgi/trace 2>/dev/null)
-if [ -n "$trace" ]; then
-  echo "$trace" | grep -E '^(ip|loc|colo|warp)=' | sed 's/^/  /'
-  claude_ip=$(echo "$trace" | awk -F= '/^ip=/{print $2}')
-  # 对该出口 IP 反查 ISP/地区，判断是否住宅
-  if [ -n "$claude_ip" ]; then
-    echo "  ↳ 出口 IP $claude_ip 归属："
-    curl -fsS --max-time 15 "https://ipinfo.io/$claude_ip/json" 2>/dev/null \
-      | jq -r '"     地区: \(.country) \(.region) \(.city)\n     ISP/组织: \(.org)"' 2>/dev/null \
-      || echo "     (ipinfo 查询失败)"
+# 4) 各 AI 服务能否使用 + 出口地区/类型（Cloudflare trace）
+check_ai() {
+  local name="$1" domain="$2"
+  hr
+  echo "▶ $name（$domain）能否使用："
+  local trace code loc aip info aorg
+  code=$(curl -s -x "http://$GATEWAY" -o /dev/null -w '%{http_code}' --max-time 20 "https://$domain/cdn-cgi/trace" 2>/dev/null)
+  trace=$(curl -fsS -x "http://$GATEWAY" --max-time 20 "https://$domain/cdn-cgi/trace" 2>/dev/null)
+  if [ -z "$trace" ]; then
+    echo "  ✗ 无法连通（HTTP ${code:-超时}）：检查 AI 组节点是否可用，或该站是否被封锁。"
+    return 1
   fi
-else
-  echo "  ⚠ 经网关访问 claude.ai 失败：检查 AI 组节点是否可用、claude.ai 是否被正确代理。"
-fi
+  loc=$(echo "$trace" | awk -F= '/^loc=/{print $2}')
+  aip=$(echo "$trace" | awk -F= '/^ip=/{print $2}')
+  echo "  连通: ✓ HTTP $code    出口地区 loc=$loc    出口 IP=$aip"
+  info=$(curl -fsS --max-time 15 "https://ipinfo.io/${aip}/json" 2>/dev/null)
+  aorg=$(echo "$info" | jq -r '.org // empty' 2>/dev/null)
+  [ -n "$aorg" ] && echo "  出口归属: $aorg → $(classify_org "$aorg")"
+  if [ "$loc" = "US" ]; then
+    echo "  ▶ 结论: 出口在美国，$name 通常可正常使用 ✅"
+  else
+    echo "  ▶ 结论: 出口地区为 $loc（非美国），$name 可能触发地区限制，请确认锁定了美国节点 ⚠"
+  fi
+}
+
+check_ai "Claude"  "claude.ai"
+check_ai "ChatGPT" "chatgpt.com"
 
 hr
-echo "验证结束。若 AI 组为空或出口非美国，请检查 nodes/ai.yaml 节点命名与 config.yaml 的 filter 正则。"
+echo "验证结束。"
+echo "· AI 组为空 / 出口非美国 → 检查 nodes/ai.yaml 节点命名与 config.yaml 的 filter 正则。"
+echo "· 若需要「静态住宅 IP」而上面判定为机房 IP → 你的机场节点是数据中心节点，"
+echo "  需改用住宅代理节点放进 nodes/ai.yaml（这是节点来源问题，非本网关配置问题）。"
