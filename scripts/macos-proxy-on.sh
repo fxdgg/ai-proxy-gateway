@@ -5,6 +5,13 @@
 # 用法: ./macos-proxy-on.sh [PAC_URL] [网络服务名]
 #   PAC_URL 默认 http://gateway.corp.example.com:19000/proxy.pac —— 请改成你的网关
 #   网络服务名 默认 Wi-Fi（有线用 "Ethernet"，可用 `networksetup -listallnetworkservices` 查看）
+# ```bash
+# networksetup -listallnetworkservices                                   # 先确认服务名(Wi-Fi/Ethernet…)
+# networksetup -setautoproxyurl "Wi-Fi" "http://服务器:19000/proxy.pac"   # 开(整条一行)
+# networksetup -setautoproxystate "Wi-Fi" on
+# networksetup -getautoproxyurl "Wi-Fi"                                   # 验证:URL + Enabled: Yes
+# networksetup -setautoproxystate "Wi-Fi" off                            # 关
+# ```
 set -euo pipefail
 
 PAC_URL="${1:-http://gateway.corp.example.com:19000/proxy.pac}"
