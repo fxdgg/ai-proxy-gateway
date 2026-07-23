@@ -139,6 +139,19 @@ export HTTPS_PROXY=http://服务器:10800
 
 员工侧验证：浏览器打开 https://claude.ai 能正常访问即成功；或 `curl -x http://服务器:10800 https://claude.ai/cdn-cgi/trace`。
 
+> **⚠ 如何确认系统 PAC 真的生效（尤其公司网络本来就能出海时）：**
+> - `curl` **默认不走系统 PAC**，只认 `-x`/`HTTP(S)_PROXY`。所以裸 `curl ipinfo.io` 是直连，测不出网关。
+>   只有浏览器等 GUI 应用才走系统 PAC。
+> - **对比直连 vs 网关出口**（cloudflare trace 不限流）：
+>   ```bash
+>   echo "直连:"; curl -s https://www.cloudflare.com/cdn-cgi/trace | grep -E '^(ip|colo|loc)='
+>   echo "网关:"; curl -s -x http://服务器:10800 https://www.cloudflare.com/cdn-cgi/trace | grep -E '^(ip|colo|loc)='
+>   ```
+>   两组 `colo`/`ip` 不同即证明网关走了不同出口。
+> - **浏览器验证**：打开 `https://www.cloudflare.com/cdn-cgi/trace`，其 `ip/colo` 应与上面「网关」一致。
+> - **服务器铁证**：网关上 `docker compose logs -f gateway | grep -i claude`，客户端浏览器访问 claude.ai，
+>   日志出现 `客户端IP --> claude.ai ... using AI-FIXED` 即生效。
+
 ---
 
 ## 7. 日常维护（员工无感）
