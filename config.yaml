@@ -131,7 +131,7 @@ proxy-groups:
     use: [ai_airport]           # AI 专用池（nodes/ai.yaml）
     # ── 锁定地区：只用美国节点，AI 出口 IP 强制在美国、不跨国 ──
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
-    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
+    exclude-filter: "(?i)(中国|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
     interval: 180
     lazy: true
@@ -147,7 +147,7 @@ proxy-groups:
     # filter 对「节点名」做正则；(?i) 忽略大小写；覆盖中英文/城市/国旗等常见命名。
     # 你的节点名若不含地区标识则匹配不到，需按实际命名调整。
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
-    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"   # 排除机场的信息/无效节点
+    exclude-filter: "(?i)(中国|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"   # 排除机场的信息/无效节点
     url: https://www.gstatic.com/generate_204
     interval: 180
     lazy: true
@@ -158,10 +158,10 @@ proxy-groups:
   - name: AI-STICKY
     type: load-balance
     strategy: sticky-sessions
-    use: [ai_airport]           # AI 专用池（nodes/ai.yaml）
+    use: [airport]           # AI 专用池（nodes/ai.yaml）
     # ── 锁定地区：只用美国节点，AI 出口 IP 固定在美国、不跨国 ──
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
-    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
+    exclude-filter: "(?i)(中国|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
     interval: 180
     lazy: true
@@ -207,4 +207,4 @@ rules:
   - GEOIP,CN,DIRECT
 
   # ── 其余到达网关的流量:其他海外站 → 轮询换 IP ──
-  - MATCH,GEN-ROTATE
+  - MATCH,AI-STICKY

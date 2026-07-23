@@ -5,3 +5,6 @@ nodes/*.yaml
 !nodes/clash.example.yaml
 !nodes/ai.example.yaml
 *.log
+
+# IDE
+.idea/
