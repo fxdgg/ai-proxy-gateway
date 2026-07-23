@@ -69,6 +69,14 @@ docker compose up -d
 curl -s http://127.0.0.1:9090/providers/proxies/airport | jq   # 看节点健康
 ```
 
+部署后建议跑一次验证，确认各组 filter 命中(尤其 AI 组锁美国后非空)、出口 IP 确为美国：
+
+```bash
+./scripts/verify.sh                       # 默认 API 127.0.0.1:9090、网关 127.0.0.1:10800
+# 或单看某个组筛出的节点：
+curl -s http://127.0.0.1:9090/proxies/AI-FIXED | jq '.all'
+```
+
 ### 5. 路由规则（rule-providers，自动更新）
 
 `config.yaml` 用远程规则集判定路由，每天自动更新，**新 AI 站自动纳入、无需手改**：
@@ -170,5 +178,6 @@ ai-proxy-gateway/
    ├─ macos-proxy-on/off.sh
    ├─ windows-proxy-on/off.ps1
    ├─ claude-code-setup.sh   # CLI env 配置
+   ├─ verify.sh              # 部署后验证：节点池/各组 filter 命中/出口 IP 地区
    └─ reload-nodes.sh        # 热重载节点池
 ```
