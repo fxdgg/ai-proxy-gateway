@@ -121,10 +121,9 @@ rule-providers:
 # ══════════════════════════════════════════════════════════════
 proxy-groups:
 
-  # ── 组①：AI-FIXED（consistent-hashing，同目标固定节点）★ AI 站用这个 ──
-  # 按「目标域名」一致性哈希：同一个网站永远走同一节点(同一出口 IP)，
-  # 不同网站分散到不同节点；节点增删时只有少量映射变化。
-  # 效果 = 每个 AI 站固定一个出口 IP，最稳，最不容易触发风控/重登。
+  # ── 组①：AI-FIXED（consistent-hashing）——备用，非轮询 ──
+  # 按「目标域名」哈希：同一站永久固定同一出口 IP（比 sticky 更稳，无 TTL）。
+  # 想让 AI 用"永久固定 IP"而非"会话粘连"，把 rules 里的 AI-STICKY 换成 AI-FIXED 即可。
   - name: AI-FIXED
     type: load-balance
     strategy: consistent-hashing
@@ -136,9 +135,8 @@ proxy-groups:
     interval: 180
     lazy: true
 
-  # ── 组②：GEN-ROTATE（round-robin，轮询）★ 其他海外站用这个 ──
-  # 每建立一条新连接就轮换到下一个节点 → 出口 IP 不断轮换，分摊流量。
-  # 注意：同一网站的多请求可能落在不同 IP，故 AI 站不用它。
+  # ── 组②：GEN-ROTATE（round-robin，轮询）——备用，默认不用 ──
+  # 每建立一条新连接就轮换节点 → 出口 IP 不断变。若想让某类流量轮询换 IP 才用它。
   - name: GEN-ROTATE
     type: load-balance
     strategy: round-robin
@@ -152,14 +150,25 @@ proxy-groups:
     interval: 180
     lazy: true
 
-  # ── 组③：AI-STICKY（sticky-sessions，会话粘连）——AI 站的备选方案 ──
-  # 按「来源+目标」哈希并带 TTL 缓存 → 同一会话一段时间内粘同一节点。
-  # 多人共享网关、担心会话中途换 IP 时，可把下方 AI 规则改指向本组。
+  # ── 组③：AI-STICKY（sticky-sessions，会话粘连）★ AI 站用这个 ──
+  # 按「来源+目标」哈希并带 TTL 缓存 → 同一会话一段时间内粘同一节点，不乱跳 IP。
   - name: AI-STICKY
     type: load-balance
     strategy: sticky-sessions
-    use: [airport]           # AI 专用池（nodes/ai.yaml）
+    use: [ai_airport]        # AI 专用池（nodes/ai.yaml）
     # ── 锁定地区：只用美国节点，AI 出口 IP 固定在美国、不跨国 ──
+    filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
+    exclude-filter: "(?i)(中国|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
+    url: https://www.gstatic.com/generate_204
+    interval: 180
+    lazy: true
+
+  # ── 组④：GEN-STICKY（sticky-sessions）★ 其他海外站用这个 ──
+  # 其他海外站也用会话粘连(不轮询)：同一会话粘同一节点，用全量池 airport。
+  - name: GEN-STICKY
+    type: load-balance
+    strategy: sticky-sessions
+    use: [airport]           # 全量池（nodes/clash.yaml）
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
     exclude-filter: "(?i)(中国|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
@@ -177,34 +186,34 @@ proxy-groups:
 rules:
   # ── 内联兜底：核心 AI 站硬编码走固定出口 ──
   # 放最前面，确保即使远程 rule-providers 拉取失败，头部 AI 站也绝不会掉进轮询。
-  - DOMAIN-KEYWORD,openai,AI-FIXED
-  - DOMAIN-KEYWORD,anthropic,AI-FIXED
-  - DOMAIN-KEYWORD,claude,AI-FIXED
-  - DOMAIN-SUFFIX,chatgpt.com,AI-FIXED
-  - DOMAIN-SUFFIX,cursor.com,AI-FIXED
-  - DOMAIN-SUFFIX,cursor.sh,AI-FIXED
-  - DOMAIN-SUFFIX,x.ai,AI-FIXED
-  - DOMAIN-SUFFIX,grok.com,AI-FIXED
-  - DOMAIN-SUFFIX,gemini.google.com,AI-FIXED
-  - DOMAIN-SUFFIX,aistudio.google.com,AI-FIXED
+  - DOMAIN-KEYWORD,openai,AI-STICKY
+  - DOMAIN-KEYWORD,anthropic,AI-STICKY
+  - DOMAIN-KEYWORD,claude,AI-STICKY
+  - DOMAIN-SUFFIX,chatgpt.com,AI-STICKY
+  - DOMAIN-SUFFIX,cursor.com,AI-STICKY
+  - DOMAIN-SUFFIX,cursor.sh,AI-STICKY
+  - DOMAIN-SUFFIX,x.ai,AI-STICKY
+  - DOMAIN-SUFFIX,grok.com,AI-STICKY
+  - DOMAIN-SUFFIX,gemini.google.com,AI-STICKY
+  - DOMAIN-SUFFIX,aistudio.google.com,AI-STICKY
 
   # ── 内网/私有地址直连 ──
   - RULE-SET,Private,DIRECT
   # ── 广告/恶意域名拦截 ──
   - RULE-SET,Block,REJECT
 
-  # ── AI 类(规则集,自动更新) → 固定出口 IP,防封号 ──
-  - RULE-SET,AI,AI-FIXED
-  - RULE-SET,ChatGPT,AI-FIXED
-  - RULE-SET,Claude,AI-FIXED
-  - RULE-SET,Gemini,AI-FIXED
-  - RULE-SET,Copilot,AI-FIXED
-  - RULE-SET,Grok,AI-FIXED
-  - RULE-SET,Perplexity,AI-FIXED
+  # ── AI 类(规则集,自动更新) → 会话粘连,美国出口,防封号 ──
+  - RULE-SET,AI,AI-STICKY
+  - RULE-SET,ChatGPT,AI-STICKY
+  - RULE-SET,Claude,AI-STICKY
+  - RULE-SET,Gemini,AI-STICKY
+  - RULE-SET,Copilot,AI-STICKY
+  - RULE-SET,Grok,AI-STICKY
+  - RULE-SET,Perplexity,AI-STICKY
 
   # ── 国内直连(仅"全局模型"下生效；选择式 PAC 下国内流量根本不到网关) ──
   - RULE-SET,China,DIRECT
   - GEOIP,CN,DIRECT
 
-  # ── 其余到达网关的流量:其他海外站 → 轮询换 IP ──
-  - MATCH,AI-STICKY
+  # ── 其余到达网关的流量:其他海外站 → 会话粘连(不轮询) ──
+  - MATCH,GEN-STICKY
