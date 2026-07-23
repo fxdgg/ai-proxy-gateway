@@ -164,9 +164,15 @@ curl -s http://127.0.0.1:9090/providers/proxies/ai_airport | jq   # 看健康
 
 **更新规则集**：rule-providers 每天自动更新，无需手动。手动强刷可 `docker compose restart gateway`。
 
-**改配置**（策略/filter/端口）：改 `config.yaml` 后 `docker compose restart gateway`。
+**改配置**（策略/filter/端口）：改 `config.yaml` 后重建容器使其生效。
 
-**看日志**：`docker compose logs -f gateway`
+> ⚠ **用 `down && up`，不要用 `restart`**：部分环境的 Docker 实为 podman，`restart` 可能报
+> `device or resource busy`（overlay 挂载占用）。彻底刷新（含断掉长连接）统一用：
+> ```bash
+> docker compose down && docker compose up -d
+> ```
+
+**看日志**：`./scripts/logs.sh [关键字] [行数] [服务]`，或 `docker compose logs -f gateway`
 
 ---
 
@@ -179,4 +185,6 @@ curl -s http://127.0.0.1:9090/providers/proxies/ai_airport | jq   # 看健康
 | 访问 AI 失败 | 节点是否可用（verify 第 3/4 项）；claude.ai 是否走了代理 |
 | 出口不是美国 | filter 正则与节点名不匹配，或 `nodes/ai.yaml` 放了非美国节点 |
 | 拉不到规则集 | 服务器是否能访问 `gh-proxy.com`；内联兜底可保证核心 AI 站不受影响 |
+| `restart` 报 device or resource busy | 该环境是 podman，用 `docker compose down && docker compose up -d` 代替 restart |
+| 改了节点仍走旧节点 | 长连接(websocket 等)不切换，`down && up` 断掉旧连接；先 `./scripts/reload-nodes.sh` 看组内节点是否已更新 |
 | 国内网站也变慢 | 全局 PAC 下国内流量绕行网关由 mihomo 判 DIRECT，属预期；介意可用选择式插件 |
