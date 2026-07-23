@@ -1,0 +1,30 @@
+// proxy.pac —— 全局代理模型：把流量交给网关，由服务端 mihomo 全权判定路由
+// （AI 固定出口 / 其他海外轮询 / 国内直连 / 广告拦截，全在 config.yaml 的 rules）。
+// 由 nginx envsubst 将 ${GATEWAY_ADDR} 替换为真实网关地址(见 .env)。
+//
+// 全局模型下客户端不再维护任何域名清单：所有请求都发到网关，mihomo 决定去向。
+// 好处：AI 站清单等全部由服务端 rule-providers 自动更新，客户端零人肉维护。
+//
+// DIRECT 兜底开关：默认 "PROXY 网关; DIRECT" —— 网关不可达时直连，不至于断网。
+// 如需"网关挂了就直接失败"，删掉 "; DIRECT"。
+function FindProxyForURL(url, host) {
+  var PROXY_STR = "PROXY ${GATEWAY_ADDR}; DIRECT";
+
+  // 本机/内网/回环：始终直连，绝不发往网关
+  if (
+    isPlainHostName(host) ||
+    shExpMatch(host, "localhost") ||
+    shExpMatch(host, "*.local") ||
+    isInNet(dnsResolve(host) || "0.0.0.0", "10.0.0.0",  "255.0.0.0")   ||
+    isInNet(dnsResolve(host) || "0.0.0.0", "172.16.0.0","255.240.0.0") ||
+    isInNet(dnsResolve(host) || "0.0.0.0", "192.168.0.0","255.255.0.0")||
+    isInNet(dnsResolve(host) || "0.0.0.0", "127.0.0.0", "255.0.0.0")
+  ) {
+    return "DIRECT";
+  }
+
+  // 其余全部交给网关，由 mihomo 决定 AI固定/海外轮询/国内直连/拦截。
+  // ——可选优化：若不想让国内流量也绕行网关，可在此加载国内域名/IP 直连判断，
+  //   但那会把大清单塞回客户端，与"服务端全权、客户端零维护"相悖，一般不建议。
+  return PROXY_STR;
+}

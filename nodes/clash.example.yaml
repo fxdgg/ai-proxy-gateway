@@ -1,0 +1,33 @@
+# ───────────────────────────────────────────────────────────────
+# 把你现成的 clash 节点 YAML 放成本目录下的 clash.yaml
+#   cp /你的/clash订阅.yaml ./nodes/clash.yaml
+#
+# mihomo 的 file provider 只读取本文件里的 `proxies:` 段，
+# 因此无论你的文件是「订阅式（只有 proxies）」还是「完整 clash 配置
+# （含 proxy-groups / rules）」都能直接用——多余的字段会被忽略。
+#
+# 下面是格式示例（真实节点请勿提交到 git，见 .gitignore）：
+# ───────────────────────────────────────────────────────────────
+proxies:
+  - name: "示例-香港-01"
+    type: ss
+    server: hk01.airport.example.com
+    port: 8443
+    cipher: aes-256-gcm
+    password: "your-password"
+
+  - name: "示例-日本-01"
+    type: vmess
+    server: jp01.airport.example.com
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    alterId: 0
+    cipher: auto
+    tls: true
+
+  - name: "示例-socks5-节点"
+    type: socks5
+    server: node.airport.example.com
+    port: 1080
+    username: user
+    password: "pass"

@@ -1,0 +1,207 @@
+# mihomo(clash.meta) 网关配置
+# ─────────────────────────────────────────────────────────────
+# 你只需维护 ./nodes/clash.yaml（你现成的 clash 节点文件），
+# 本文件通过 proxy-providers 以「文件」方式自动加载其中的全部节点，
+# 无需转换、无需把节点抄到这里。加/删节点只改 nodes/clash.yaml 即可。
+# ─────────────────────────────────────────────────────────────
+
+# mixed-port：同一端口同时支持 http 与 socks5 代理。
+# 浏览器插件 / Claude Code(HTTP_PROXY) / 桌面 app 全部连这个端口。
+mixed-port: 10800
+
+# 允许局域网/其他机器连接（这是"全公司连这台服务器"的关键开关）。
+allow-lan: true
+bind-address: '*'
+
+mode: rule
+log-level: info
+
+# 管理 API（可选）：用于热重载、看节点健康状态。建议只绑本机。
+external-controller: 127.0.0.1:9090
+
+# ── 节点池：以文件 provider 方式读取你的 clash 节点 ──
+proxy-providers:
+  # 全量/通用节点池：你的 clash 节点原样放入
+  airport:
+    type: file
+    path: ./nodes/clash.yaml      # ← 你的 clash YAML，原样放入，不用改
+    # 主动健康检查：定期探测节点可用性，挂掉的自动剔除
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 180               # 秒
+
+  # ── AI 专用节点池（AI 组直接用它）─────────────────────────
+  # 按「文件」圈定 AI 专用出口，不依赖节点名/filter：把要给 AI 专用的节点
+  # 粘进 nodes/ai.yaml（来自哪个机场、叫什么名字都行）。
+  # 部署时必须先创建该文件：cp nodes/ai.example.yaml nodes/ai.yaml
+  ai_airport:
+    type: file
+    path: ./nodes/ai.yaml
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 180
+
+# ══════════════════════════════════════════════════════════════
+# 规则集(rule-providers)：远程维护、每天自动更新，替代手写域名清单。
+# 好处：新 AI 站由社区列表自动覆盖，不再靠人肉维护、也不会漏。
+# 依赖：网关需能访问下方 URL(用 gh-proxy.com 镜像,方便国内拉取)。
+#   若拉取失败，rules 里的「内联兜底」仍保证核心 AI 站走固定出口(防封号)。
+# ══════════════════════════════════════════════════════════════
+rule-providers:
+  # AI 全集(非中国大陆)：几乎涵盖所有海外 AI 站，这是防漏的核心
+  AI:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ai-!cn.mrs"
+  # 单独补充几个重点厂商，双保险
+  ChatGPT:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/openai.mrs"
+  Claude:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Claude/Claude.list"
+  Gemini:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/liandu2024/clash/refs/heads/main/list/Gemini.list"
+  Copilot:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/liandu2024/clash/refs/heads/main/list/Copilot.list"
+  Grok:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/liandu2024/clash/refs/heads/main/list/Grok.list"
+  Perplexity:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/perplexity.mrs"
+  # 国内直连 / 内网 / 拦截(仅"全局模型"下才会用到；选择式 PAC 下可留着不影响)
+  China:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/cn.mrs"
+  Private:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/private.mrs"
+  # 广告/恶意域名拦截(全局模型下顺手启用)
+  Block:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/liandu2024/clash/refs/heads/main/list/Block.list"
+
+# ══════════════════════════════════════════════════════════════
+# 代理组：预置三个 load-balance 组，演示三种 strategy
+# 目标分流：AI 类海外站 → 固定出口 IP；其他海外站 → 轮询换 IP
+# ══════════════════════════════════════════════════════════════
+proxy-groups:
+
+  # ── 组①：AI-FIXED（consistent-hashing，同目标固定节点）★ AI 站用这个 ──
+  # 按「目标域名」一致性哈希：同一个网站永远走同一节点(同一出口 IP)，
+  # 不同网站分散到不同节点；节点增删时只有少量映射变化。
+  # 效果 = 每个 AI 站固定一个出口 IP，最稳，最不容易触发风控/重登。
+  - name: AI-FIXED
+    type: load-balance
+    strategy: consistent-hashing
+    use: [ai_airport]           # AI 专用池（nodes/ai.yaml）
+    url: https://www.gstatic.com/generate_204
+    interval: 180
+    lazy: true
+
+  # ── 组②：GEN-ROTATE（round-robin，轮询）★ 其他海外站用这个 ──
+  # 每建立一条新连接就轮换到下一个节点 → 出口 IP 不断轮换，分摊流量。
+  # 注意：同一网站的多请求可能落在不同 IP，故 AI 站不用它。
+  - name: GEN-ROTATE
+    type: load-balance
+    strategy: round-robin
+    use: [airport]
+    # ── 锁定地区：只在美国节点间轮询，出口 IP 不跨国乱跳 ──
+    # filter 对「节点名」做正则；(?i) 忽略大小写；覆盖中英文/城市/国旗等常见命名。
+    # 你的节点名若不含地区标识则匹配不到，需按实际命名调整。
+    filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
+    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"   # 排除机场的信息/无效节点
+    url: https://www.gstatic.com/generate_204
+    interval: 180
+    lazy: true
+
+  # ── 组③：AI-STICKY（sticky-sessions，会话粘连）——AI 站的备选方案 ──
+  # 按「来源+目标」哈希并带 TTL 缓存 → 同一会话一段时间内粘同一节点。
+  # 多人共享网关、担心会话中途换 IP 时，可把下方 AI 规则改指向本组。
+  - name: AI-STICKY
+    type: load-balance
+    strategy: sticky-sessions
+    use: [ai_airport]           # AI 专用池（nodes/ai.yaml）
+    # ── 锁定地区：只用美国节点，AI 出口 IP 固定在美国、不跨国 ──
+    filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
+    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
+    url: https://www.gstatic.com/generate_204
+    interval: 180
+    lazy: true
+
+# ══════════════════════════════════════════════════════════════
+# 路由规则（rule 模式，从上到下命中即停，末尾 MATCH 兜底）
+#   AI 类海外站 → AI-FIXED（固定出口 IP）
+#   其他所有流量 → GEN-ROTATE（轮询换 IP）
+# 说明：能被下面规则分流的前提是流量已到达网关——由 PAC/系统代理决定
+#      「哪些域名发到网关」。若要让"普通海外站"也走轮询，需把它们也加进
+#      www/proxy.pac.template 的域名清单（或桌面端设为全局代理）。
+# ══════════════════════════════════════════════════════════════
+rules:
+  # ── 内联兜底：核心 AI 站硬编码走固定出口 ──
+  # 放最前面，确保即使远程 rule-providers 拉取失败，头部 AI 站也绝不会掉进轮询。
+  - DOMAIN-KEYWORD,openai,AI-FIXED
+  - DOMAIN-KEYWORD,anthropic,AI-FIXED
+  - DOMAIN-KEYWORD,claude,AI-FIXED
+  - DOMAIN-SUFFIX,chatgpt.com,AI-FIXED
+  - DOMAIN-SUFFIX,cursor.com,AI-FIXED
+  - DOMAIN-SUFFIX,cursor.sh,AI-FIXED
+  - DOMAIN-SUFFIX,x.ai,AI-FIXED
+  - DOMAIN-SUFFIX,grok.com,AI-FIXED
+  - DOMAIN-SUFFIX,gemini.google.com,AI-FIXED
+  - DOMAIN-SUFFIX,aistudio.google.com,AI-FIXED
+
+  # ── 内网/私有地址直连 ──
+  - RULE-SET,Private,DIRECT
+  # ── 广告/恶意域名拦截 ──
+  - RULE-SET,Block,REJECT
+
+  # ── AI 类(规则集,自动更新) → 固定出口 IP,防封号 ──
+  - RULE-SET,AI,AI-FIXED
+  - RULE-SET,ChatGPT,AI-FIXED
+  - RULE-SET,Claude,AI-FIXED
+  - RULE-SET,Gemini,AI-FIXED
+  - RULE-SET,Copilot,AI-FIXED
+  - RULE-SET,Grok,AI-FIXED
+  - RULE-SET,Perplexity,AI-FIXED
+
+  # ── 国内直连(仅"全局模型"下生效；选择式 PAC 下国内流量根本不到网关) ──
+  - RULE-SET,China,DIRECT
+  - GEOIP,CN,DIRECT
+
+  # ── 其余到达网关的流量:其他海外站 → 轮询换 IP ──
+  - MATCH,GEN-ROTATE

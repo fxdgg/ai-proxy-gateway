@@ -1,0 +1,27 @@
+# AI 专用节点池示例
+# ───────────────────────────────────────────────────────────────
+# 启用"AI 专用出口 IP 池"时用本文件的正式版：nodes/ai.yaml
+#   1) 复制/新建：cp nodes/ai.example.yaml nodes/ai.yaml
+#   2) 把你想【专门给 AI 用】的节点粘进下面的 proxies:（从各机场挑，
+#      节点名叫什么都行——这里按"文件"圈定，不依赖名字规则/filter）
+#   3) 在 config.yaml 里取消 ai_airport provider 的注释，并把
+#      AI-FIXED / AI-STICKY 的 use 改成 [ai_airport]
+#
+# 只需 proxies: 段，格式与 clash 完全一致。真实文件 nodes/ai.yaml 已被 .gitignore 忽略。
+# ───────────────────────────────────────────────────────────────
+proxies:
+  - name: "AI专用-美西-01"
+    type: ss
+    server: ai-us01.airport-a.example.com
+    port: 8443
+    cipher: aes-256-gcm
+    password: "your-password"
+
+  - name: "AI专用-日本-01"
+    type: vmess
+    server: ai-jp01.airport-b.example.com     # 来自另一个机场，名字风格不同也没关系
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    alterId: 0
+    cipher: auto
+    tls: true
