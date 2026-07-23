@@ -108,9 +108,19 @@ curl -s http://127.0.0.1:19000/proxy.pac | head    # 应看到 FindProxyForURL +
 
 把下面的 `服务器` 换成 `.env` 里的 `GATEWAY_ADDR` 主机部分。
 
+> **⚠ 两个地址别搞混（常见坑）：**
+> - **PAC 文件的 URL** 要带 `http://`：`http://服务器:19000/proxy.pac` —— 这是「去哪下载 PAC 文件」。
+> - **PAC 文件内部的 `PROXY host:port`** 不带 scheme：`服务器:10800` —— 这是 PAC 语法，由 `.env` 的 `GATEWAY_ADDR` 决定，带了 `http://` 会失效（容器已自动剥掉）。
+>
+> **⚠ 命令写在同一行**：`networksetup -setautoproxyurl "Wi-Fi" "http://…/proxy.pac"` 整条别换行，
+> 否则 URL 掉到下一行会报 `The amount of parameters was not correct`。
+
 **macOS（GUI 应用/浏览器）：**
 ```bash
-networksetup -setautoproxyurl "Wi-Fi" "http://服务器:19000/proxy.pac"   # 开
+networksetup -listallnetworkservices                                   # 先确认服务名(Wi-Fi/Ethernet…)
+networksetup -setautoproxyurl "Wi-Fi" "http://服务器:19000/proxy.pac"   # 开(整条一行)
+networksetup -setautoproxystate "Wi-Fi" on
+networksetup -getautoproxyurl "Wi-Fi"                                   # 验证:URL + Enabled: Yes
 networksetup -setautoproxystate "Wi-Fi" off                            # 关
 ```
 
