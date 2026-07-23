@@ -52,6 +52,10 @@ GATEWAY_ADDR=10.0.0.8:10800
 ```
 这个地址会被写进 PAC，员工的系统代理据此连网关。
 
+> ⚠ **只填 `host:port`，不要带 `http://`**（PAC 的 `PROXY` 指令只认 host:port，带 scheme 会失效）。
+> 即使误加了前缀，容器也会自动剥掉（`www/15-sanitize-gateway.envsh`）。渲染结果可核对：
+> `curl -s http://127.0.0.1:19000/proxy.pac | grep PROXY_STR` 应为 `PROXY 主机:10800; DIRECT`。
+
 ## 4. 启动
 
 ```bash
