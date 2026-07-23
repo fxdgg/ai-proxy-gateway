@@ -18,6 +18,13 @@ for prov in airport ai_airport; do
   fi
 done
 
+# 立即做一次健康检查：让超时/失效的节点【马上】被标记剔除，
+# 之后的新连接会立刻改选存活节点（不必干等健康检查周期）。
+for prov in airport ai_airport; do
+  curl -fsS "$API/providers/proxies/$prov/healthcheck" >/dev/null 2>&1 \
+    && echo " -> provider [$prov] 已触发即时健康检查"
+done
+
 echo
 echo "验证各组当前节点(确认增删已生效)："
 for grp in AI-FIXED GEN-ROTATE AI-STICKY; do

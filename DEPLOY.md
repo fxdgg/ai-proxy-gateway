@@ -156,23 +156,31 @@ export HTTPS_PROXY=http://服务器:10800
 
 ## 7. 日常维护（员工无感）
 
-**加/删节点**：改 `nodes/clash.yaml` 或 `nodes/ai.yaml` 后热重载：
+**改动生效方式——按改了什么选，多数无需重启、无停机：**
+
+| 改了什么 | 用什么生效 | 是否停机 |
+|----------|-----------|----------|
+| 节点文件 `nodes/*.yaml` | `./scripts/reload-nodes.sh` | 否（热重载 + 即时健康检查）|
+| 配置 `config.yaml`（规则/组/filter/策略）| `./scripts/apply.sh` | 否（API 热加载）|
+| `docker-compose.yml` / 换镜像 | `docker compose up -d` | 极短 |
+
+> 所以你**不用背 `down && up`**：改节点跑 `reload-nodes.sh`，改配置跑 `apply.sh`。
+> 只有在 API 热加载失败、或需要彻底断掉所有旧连接时，才用 `docker compose down && docker compose up -d`
+> （podman 环境别用 `restart`，会报 device or resource busy）。
+
+**加/删节点**：改 `nodes/*.yaml` 后：
 ```bash
-./scripts/reload-nodes.sh
-curl -s http://127.0.0.1:9090/providers/proxies/ai_airport | jq   # 看健康
+./scripts/reload-nodes.sh        # 热重载 + 即时健康检查，挂掉的节点马上被剔除
 ```
 
-**更新规则集**：rule-providers 每天自动更新，无需手动。手动强刷可 `docker compose restart gateway`。
+**改配置**：改 `config.yaml` 后：
+```bash
+./scripts/apply.sh               # API 热加载，无停机
+```
 
-**改配置**（策略/filter/端口）：改 `config.yaml` 后重建容器使其生效。
+**更新规则集**：rule-providers 每天自动更新，无需手动。
 
-> ⚠ **用 `down && up`，不要用 `restart`**：部分环境的 Docker 实为 podman，`restart` 可能报
-> `device or resource busy`（overlay 挂载占用）。彻底刷新（含断掉长连接）统一用：
-> ```bash
-> docker compose down && docker compose up -d
-> ```
-
-**看日志**：`./scripts/logs.sh [关键字] [行数] [服务]`，或 `docker compose logs -f gateway`
+**看日志**：`./scripts/logs.sh [关键字] [行数] [服务]`
 
 ---
 
