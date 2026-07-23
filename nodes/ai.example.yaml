@@ -50,3 +50,29 @@ proxies:
     password: "your-pass"
     # tls: true
 
+  # —— 链式代理示例（中转 → 落地）——
+  # 场景：直连落地住宅节点不稳/延迟高，想先经一个中转(前置)节点再到落地。
+  # 做法：给【落地节点】加 dialer-proxy: "<前置节点名>"，即"本节点经由前置节点再出去"。
+  #
+  # ① 前置/中转节点（可放本文件；注意名字别含"美国/US"，否则会被 AI 组的美国 filter
+  #    当成出口选中——它只做中转，不该当出口）：
+  - name: "中转-HK-01"
+    type: ss
+    server: relay-hk.example.com
+    port: 8388
+    cipher: aes-256-gcm
+    password: "relay-pass"
+    udp: true
+
+  # ② 落地住宅节点：通过上面的中转连接（= 链式）。名字含"美国"以命中 AI 组 filter。
+  - name: "🇺🇸美国-住宅-链式-01"
+    type: socks5
+    server: us-residential.example.com
+    port: 1080
+    username: "your-user"
+    password: "your-pass"
+    dialer-proxy: "中转-HK-01"     # ★ 关键：本节点先走"中转-HK-01"再出口 = 二级链式
+    # 多级链式：让"中转-HK-01"也加 dialer-proxy 指向再上一级，即可串更多跳。
+    # dialer-proxy 也可指向一个 proxy-group（如一组中转做冗余）。
+
+
