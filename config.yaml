@@ -200,25 +200,27 @@ proxy-groups:
 
 # ══════════════════════════════════════════════════════════════
 # 路由规则（rule 模式，从上到下命中即停，末尾 MATCH 兜底）
-#   AI 类海外站 → AI-FIXED（固定出口 IP）
-#   其他所有流量 → GEN-ROTATE（轮询换 IP）
+#   AI 类海外站 → AI-STICKY（sticky-sessions：按 来源IP+目标 哈希，
+#                 每个用户访问同一站走不同节点，避免"多账号同一 IP"被风控）
+#   其他所有流量 → GEN-STICKY（同为 sticky，不轮询）
+#   （AI-FIXED / GEN-ROTATE 为未引用的备用组：想全员固定同一 IP 用 AI-FIXED，
+#     想轮询换 IP 用 GEN-ROTATE，把对应规则目标改过去即可。）
 # 说明：能被下面规则分流的前提是流量已到达网关——由 PAC/系统代理决定
-#      「哪些域名发到网关」。若要让"普通海外站"也走轮询，需把它们也加进
-#      www/proxy.pac.template 的域名清单（或桌面端设为全局代理）。
+#      「哪些域名发到网关」。
 # ══════════════════════════════════════════════════════════════
 rules:
-  # ── 内联兜底：核心 AI 站硬编码走固定出口 ──
+  # ── 内联兜底：核心 AI 站硬编码走 AI 组（防远程规则集拉取失败时漏走轮询）──
   # 放最前面，确保即使远程 rule-providers 拉取失败，头部 AI 站也绝不会掉进轮询。
-  - DOMAIN-KEYWORD,openai,AI-FIXED
-  - DOMAIN-KEYWORD,anthropic,AI-FIXED
-  - DOMAIN-KEYWORD,claude,AI-FIXED
-  - DOMAIN-SUFFIX,chatgpt.com,AI-FIXED
-  - DOMAIN-SUFFIX,cursor.com,AI-FIXED
-  - DOMAIN-SUFFIX,cursor.sh,AI-FIXED
-  - DOMAIN-SUFFIX,x.ai,AI-FIXED
-  - DOMAIN-SUFFIX,grok.com,AI-FIXED
-  - DOMAIN-SUFFIX,gemini.google.com,AI-FIXED
-  - DOMAIN-SUFFIX,aistudio.google.com,AI-FIXED
+  - DOMAIN-KEYWORD,openai,AI-STICKY
+  - DOMAIN-KEYWORD,anthropic,AI-STICKY
+  - DOMAIN-KEYWORD,claude,AI-STICKY
+  - DOMAIN-SUFFIX,chatgpt.com,AI-STICKY
+  - DOMAIN-SUFFIX,cursor.com,AI-STICKY
+  - DOMAIN-SUFFIX,cursor.sh,AI-STICKY
+  - DOMAIN-SUFFIX,x.ai,AI-STICKY
+  - DOMAIN-SUFFIX,grok.com,AI-STICKY
+  - DOMAIN-SUFFIX,gemini.google.com,AI-STICKY
+  - DOMAIN-SUFFIX,aistudio.google.com,AI-STICKY
 
   # ── 内网/私有地址直连 ──
   - RULE-SET,Private,DIRECT
@@ -226,13 +228,13 @@ rules:
   - RULE-SET,Block,REJECT
 
   # ── AI 类(规则集,自动更新) → 会话粘连,美国出口,防封号 ──
-  - RULE-SET,AI,AI-FIXED
-  - RULE-SET,ChatGPT,AI-FIXED
-  - RULE-SET,Claude,AI-FIXED
-  - RULE-SET,Gemini,AI-FIXED
-  - RULE-SET,Copilot,AI-FIXED
-  - RULE-SET,Grok,AI-FIXED
-  - RULE-SET,Perplexity,AI-FIXED
+  - RULE-SET,AI,AI-STICKY
+  - RULE-SET,ChatGPT,AI-STICKY
+  - RULE-SET,Claude,AI-STICKY
+  - RULE-SET,Gemini,AI-STICKY
+  - RULE-SET,Copilot,AI-STICKY
+  - RULE-SET,Grok,AI-STICKY
+  - RULE-SET,Perplexity,AI-STICKY
 
   # ── 国内直连(仅"全局模型"下生效；选择式 PAC 下国内流量根本不到网关) ──
   - RULE-SET,China,DIRECT
