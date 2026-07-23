@@ -182,5 +182,6 @@ ai-proxy-gateway/
    ├─ claude-code-setup.sh   # CLI env 配置
    ├─ verify.sh              # 部署后验证：节点池/各组 filter 命中/出口 IP 地区
    ├─ logs.sh                # 看网关日志，支持关键字过滤：./scripts/logs.sh claude
-   └─ reload-nodes.sh        # 热重载节点池
+   ├─ apply.sh               # 改 config.yaml 后热加载生效(无停机)
+   └─ reload-nodes.sh        # 改节点后热重载 + 即时健康检查
 ```

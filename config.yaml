@@ -43,6 +43,17 @@ proxy-providers:
       url: https://www.gstatic.com/generate_204
       interval: 180
 
+  # ── 中转节点池（可选，链式代理用）──────────────────────────
+  # 单独放中转/前置节点，配合 RELAY-POOL 组 + 落地节点的 dialer-proxy 使用。
+  # 用法：cp 你的中转节点到 nodes/relay.yaml，再取消下面注释与 RELAY-POOL 组注释。
+  # relay:
+  #   type: file
+  #   path: ./nodes/relay.yaml
+  #   health-check:
+  #     enable: true
+  #     url: https://www.gstatic.com/generate_204
+  #     interval: 180
+
 # ══════════════════════════════════════════════════════════════
 # 规则集(rule-providers)：远程维护、每天自动更新，替代手写域名清单。
 # 好处：新 AI 站由社区列表自动覆盖，不再靠人肉维护、也不会漏。
@@ -132,7 +143,7 @@ proxy-groups:
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
     exclude-filter: "(?i)(中国|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
-    interval: 120
+    interval: 60
     lazy: true
 
   # ── 组②：GEN-ROTATE（round-robin，轮询）——备用，默认不用 ──
@@ -147,7 +158,7 @@ proxy-groups:
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
     exclude-filter: "(?i)(中国|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"   # 排除机场的信息/无效节点
     url: https://www.gstatic.com/generate_204
-    interval: 120
+    interval: 60
     lazy: true
 
   # ── 组③：AI-STICKY（sticky-sessions，会话粘连）★ AI 站用这个 ──
@@ -160,7 +171,7 @@ proxy-groups:
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
     exclude-filter: "(?i)(中国|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
-    interval: 120
+    interval: 60
     lazy: true
 
   # ── 组④：GEN-STICKY（sticky-sessions）★ 其他海外站用这个 ──
@@ -172,8 +183,20 @@ proxy-groups:
     filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
     exclude-filter: "(?i)(中国|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
-    interval: 120
+    interval: 60
     lazy: true
+
+  # ── 组⑤：RELAY-POOL（中转代理组，链式代理用）——可选 ──
+  # 给"落地节点"当前置中转用：一组中转节点，url-test 自动选延迟最低的那个，挂了自动换。
+  # 用法：① 准备中转节点(见下 relay provider，或直接 proxies: [中转A, 中转B])
+  #      ② 在 nodes/ai.yaml 的落地节点上写 dialer-proxy: "RELAY-POOL"
+  # 于是落地节点会经由"当前最快的存活中转"出去，中转层自带冗余+故障切换。
+  # - name: RELAY-POOL
+  #   type: url-test            # 自动选延迟最低；也可用 fallback(按序取第一个存活)
+  #   use: [relay]              # 用下面的 relay provider；或改成 proxies: [中转-HK-01, 中转-JP-01]
+  #   url: https://www.gstatic.com/generate_204
+  #   interval: 120
+  #   tolerance: 50
 
 # ══════════════════════════════════════════════════════════════
 # 路由规则（rule 模式，从上到下命中即停，末尾 MATCH 兜底）

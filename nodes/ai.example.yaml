@@ -73,6 +73,18 @@ proxies:
     password: "your-pass"
     dialer-proxy: "中转-HK-01"     # ★ 关键：本节点先走"中转-HK-01"再出口 = 二级链式
     # 多级链式：让"中转-HK-01"也加 dialer-proxy 指向再上一级，即可串更多跳。
-    # dialer-proxy 也可指向一个 proxy-group（如一组中转做冗余）。
+
+  # ③【推荐】中转用「代理组」而非单个节点：多中转冗余 + 自动选最快 + 挂了自动换。
+  #    步骤：a) 把多个中转节点放进 nodes/relay.yaml（格式同本文件的 proxies）
+  #         b) config.yaml 取消 relay provider 与 RELAY-POOL 组的注释
+  #         c) 落地节点的 dialer-proxy 指向组名 "RELAY-POOL"
+  - name: "🇺🇸美国-住宅-链式-02"
+    type: socks5
+    server: us-residential2.example.com
+    port: 1080
+    username: "your-user"
+    password: "your-pass"
+    dialer-proxy: "RELAY-POOL"     # ★ 经由中转组(自动选最快的存活中转)再出口
+
 
 
