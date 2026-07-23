@@ -129,6 +129,9 @@ proxy-groups:
     type: load-balance
     strategy: consistent-hashing
     use: [ai_airport]           # AI 专用池（nodes/ai.yaml）
+    # ── 锁定地区：只用美国节点，AI 出口 IP 强制在美国、不跨国 ──
+    filter: "(?i)(🇺🇸|美国|美西|美东|United States|\\bUS\\b|\\bUSA\\b|洛杉矶|Los ?Angeles|\\bLA\\b|圣何塞|San ?Jose|硅谷|纽约|New ?York|西雅图|Seattle|达拉斯|Dallas)"
+    exclude-filter: "(?i)(剩余|流量|到期|过期|官网|重置|订阅|expire|traffic)"
     url: https://www.gstatic.com/generate_204
     interval: 180
     lazy: true
