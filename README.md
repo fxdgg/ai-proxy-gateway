@@ -178,6 +178,7 @@ ai-proxy-gateway/
 │  └─ nginx.conf             # PAC 静态服务
 └─ scripts/
    ├─ macos-proxy-on/off.sh
+   ├─ macos-proxy-manual-on/off.sh  # 手动全局代理(桌面 app 不认 PAC 时用)
    ├─ windows-proxy-on/off.ps1
    ├─ claude-code-setup.sh   # CLI env 配置
    ├─ verify.sh              # 部署后验证：节点池/各组 filter 命中/出口 IP 地区

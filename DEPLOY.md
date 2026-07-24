@@ -137,6 +137,23 @@ export HTTP_PROXY=http://服务器:10800
 export HTTPS_PROXY=http://服务器:10800
 ```
 
+### 桌面 app（Claude 桌面版 / Cursor 等）
+
+多数桌面 app 是 Electron，**遵循 macOS/Windows 系统代理**，设完上面的系统 PAC 就已覆盖，但：
+
+1. **必须完全重启 app**（macOS 用 `Cmd+Q` 退出后重开，不是关窗口）——app 启动时才读代理。
+2. 重启后验证：网关服务器上 `./scripts/logs.sh claude`，用桌面版发条消息，
+   日志出现 `你的客户端IP --> claude.ai ... using AI-STICKY` 即生效。
+3. **若桌面版不认 PAC**（个别 Electron 只认手动代理），改用「手动全局代理」：
+   ```bash
+   ./scripts/macos-proxy-manual-on.sh  服务器 10800  Wi-Fi   # 开(http+https 全指网关)
+   ./scripts/macos-proxy-manual-off.sh Wi-Fi                 # 关
+   ```
+   Windows 手动代理：系统设置 → 网络 → 代理 → 手动，填 `服务器:10800`。
+   > 手动代理与 PAC 二选一，别同时开；手动兼容性更好，PAC 更「选择式」。设完同样要重启 app。
+4. **仍不走网关**：说明该 app 完全绕过系统代理、自己直连。终极方案是 TUN 透明代理接管全部流量（需额外配置）。
+
+
 员工侧验证：浏览器打开 https://claude.ai 能正常访问即成功；或 `curl -x http://服务器:10800 https://claude.ai/cdn-cgi/trace`。
 
 > **⚠ 如何确认系统 PAC 真的生效（尤其公司网络本来就能出海时）：**
