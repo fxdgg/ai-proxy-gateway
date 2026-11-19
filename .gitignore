@@ -1,10 +1,17 @@
 .env
+
+# ── 节点文件（含敏感凭证，一律不提交）──────────────────────────────
+# nodes/*.yaml 已覆盖：clash.yaml、clash-<id>.yaml（多机场）、
+# nodes/_merged.yaml（scripts/build-config.sh 的合并产物，防误提交）等全部 yaml。
+# 新增机场文件（clash-c.yaml …）无需改本文件。
 nodes/clash.yaml
-nodes/ai.yaml
 nodes/*.yaml
+# 仅示例模板提交（白名单必须放在通配规则之后才生效）：
 !nodes/clash.example.yaml
-!nodes/ai.example.yaml
 *.log
 
 # IDE
 .idea/
+
+# macOS
+.DS_Store

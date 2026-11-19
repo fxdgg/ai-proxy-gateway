@@ -1,0 +1,141 @@
+# mihomo(clash.meta) 通用实例网关配置（gateway-main）
+# ─────────────────────────────────────────────────────────────
+# 通用出口实例：内网/私有直连 + 广告拦截 + 国内直连 + 其余流量香港出口兜底。
+# 你只需维护 ./nodes/clash.yaml（默认机场，兼容旧名）或 ./nodes/clash-<id>.yaml（多机场时每机场一个文件），
+# 本文件通过 proxy-providers 以「文件」方式自动加载其中的全部节点，
+# 无需转换、无需把节点抄到这里。加/删节点只改 nodes/ 下的节点文件即可。
+# ─────────────────────────────────────────────────────────────
+
+# mixed-port：同一端口同时支持 http 与 socks5 代理。
+# 全局 PAC 兜底 / 桌面 app / 系统手动代理连这个端口。
+mixed-port: 7891
+
+# 允许局域网/其他机器连接（这是"全公司连这台服务器"的关键开关）。
+allow-lan: true
+bind-address: '*'
+
+mode: rule
+log-level: info
+
+# 管理 API（可选）：用于热重载、看节点健康状态。建议只绑本机。
+external-controller: 127.0.0.1:9091
+
+# ── 节点池：以文件 provider 方式读取你的 clash 节点 ──
+proxy-providers:
+  # 全量/通用节点池：由 scripts/build-config.sh 扫描 nodes/clash-*.yaml（+clash.yaml）
+  # 合并生成的产物；新增/删除机场后需先跑 build-config.sh 再 reload。
+  airport:
+    type: file
+    path: ./nodes/_merged.yaml
+    # 主动健康检查：定期探测节点可用性，挂掉的自动剔除
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 180               # 秒
+
+  # ── 中转节点池（可选，链式代理用）──────────────────────────
+  # 单独放中转/前置节点，配合 RELAY-POOL 组 + 落地节点的 dialer-proxy 使用。
+  # 用法：cp 你的中转节点到 nodes/relay.yaml，再取消下面注释与 RELAY-POOL 组注释。
+  # relay:
+  #   type: file
+  #   path: ./nodes/relay.yaml
+  #   health-check:
+  #     enable: true
+  #     url: https://www.gstatic.com/generate_204
+  #     interval: 180
+
+# ══════════════════════════════════════════════════════════════
+# 规则集(rule-providers)：远程维护、每天自动更新，替代手写域名清单。
+# 通用实例只保留与「通用流量」相关的三个数据源（国内直连/内网/拦截）。
+# 依赖：网关需能访问下方 URL(用 gh-proxy.com 镜像,方便国内拉取)。
+# ══════════════════════════════════════════════════════════════
+rule-providers:
+  # 国内直连 / 内网 / 拦截(仅"全局模式"下才会用到；选择式 PAC 下可留着不影响)
+  China:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/cn.mrs"
+  Private:
+    type: http
+    behavior: domain
+    format: mrs
+    interval: 86400
+    url: "https://gh-proxy.com/github.com/metacubex/meta-rules-dat/raw/refs/heads/meta/geo/geosite/private.mrs"
+  # 广告/恶意域名拦截(全局模式下顺手启用)
+  Block:
+    type: http
+    behavior: classical
+    format: text
+    interval: 86400
+    url: "https://gh-proxy.com/raw.githubusercontent.com/liandu2024/clash/refs/heads/main/list/Block.list"
+
+# ══════════════════════════════════════════════════════════════
+# 代理组：默认出口（会话粘连）+ 香港轮询备胎
+# ══════════════════════════════════════════════════════════════
+proxy-groups:
+
+  # ── 组①：GEN-ROTATE（round-robin，轮询）——香港轮询备用，默认不用 ──
+  # 每建立一条新连接就轮换节点 → 出口 IP 不断变。若想让某类流量轮询换 IP 才用它。
+  - name: GEN-ROTATE
+    type: load-balance
+    strategy: round-robin
+    use: [airport]
+    # ── 聚合地区：只在香港节点间轮询（与 HK-STICKY 同源正则），出口 IP 不跨国乱跳 ──
+    # filter 对「节点名」做正则；(?i) 忽略大小写。
+    # 语义：包含香港关键词 且 排除台/日/韩/新地区字符及机场信息/无效节点。
+    # 已移除「美」「深」的排除：「香港+美」类节点（如香港-美西优化）、
+    # 「香港-深圳优化」类节点应归香港组；纯美国/深圳节点因不含香港关键词，
+    # filter 不命中，天然不进本组。
+    filter: "(?i)(香港落地|广港|香港|HK|Hong ?Kong|🇭🇰|Hong)"
+    exclude-filter: "(?i)(禁止大流量|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|台|日|韩|新)"
+    url: https://www.gstatic.com/generate_204
+    interval: 60
+    lazy: true
+
+  # ── 组②：HK-STICKY（sticky-sessions）★ 默认出口用这个 ──
+  # 跨机场聚合香港节点：包含香港关键词 且 排除台/日/韩/新地区字符及机场信息/无效节点。
+  # 已移除「美」「深」的排除：「香港+美」类节点（如香港-美西优化）、
+  # 「香港-深圳优化」类节点应归香港组；纯美国/深圳节点因不含香港关键词，
+  # filter 不命中，天然不进本组。
+  # 作为 rules 里 MATCH 的兜底目标（默认出口）。
+  - name: HK-STICKY
+    type: load-balance
+    strategy: sticky-sessions
+    use: [airport]           # 全量池（nodes/_merged.yaml，多机场合并产物）
+    filter: "(?i)(香港落地|广港|香港|HK|Hong ?Kong|🇭🇰|Hong)"
+    exclude-filter: "(?i)(禁止大流量|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|台|日|韩|新)"
+    url: https://www.gstatic.com/generate_204
+    interval: 60
+    lazy: true
+
+  # ── 组③：RELAY-POOL（中转代理组，链式代理用）——可选 ──
+  # 给"落地节点"当前置中转用：一组中转节点，url-test 自动选延迟最低的那个，挂了自动换。
+  # 用法：① 准备中转节点(见上 relay provider，或直接 proxies: [中转A, 中转B])
+  #      ② 在机场节点的落地节点上写 dialer-proxy: "RELAY-POOL"
+  # 于是落地节点会经由"当前最快的存活中转"出去，中转层自带冗余+故障切换。
+  # - name: RELAY-POOL
+  #   type: url-test            # 自动选延迟最低；也可用 fallback(按序取第一个存活)
+  #   use: [relay]              # 用上面的 relay provider；或改成 proxies: [中转-HK-01, 中转-JP-01]
+  #   url: https://www.gstatic.com/generate_204
+  #   interval: 120
+  #   tolerance: 50
+
+# ══════════════════════════════════════════════════════════════
+# 路由规则（rule 模式，从上到下命中即停，末尾 MATCH 兜底）
+# 说明：能被下面规则分流的前提是流量已到达网关——由 PAC/系统代理决定
+#      「哪些域名发到网关」。
+# ══════════════════════════════════════════════════════════════
+rules:
+  # ── 内网/私有地址直连 ──
+  - RULE-SET,Private,DIRECT
+  # ── 广告/恶意域名拦截 ──
+  - RULE-SET,Block,REJECT
+
+  # ── 国内直连(仅"全局模式"下生效；选择式 PAC 下国内流量根本不到网关) ──
+  - RULE-SET,China,DIRECT
+  - GEOIP,CN,DIRECT
+
+  # ── 其余到达网关的流量:其他海外站 → 香港组兜底(默认出口) ──
+  - MATCH,HK-STICKY

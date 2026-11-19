@@ -1,0 +1,74 @@
+# mihomo(clash.meta) AI 出口实例网关配置（gateway-ai）
+# ─────────────────────────────────────────────────────────────
+# AI 出口实例：全部流量（MATCH 兜底）走美国节点聚合组，会话粘连防风控。
+# 哪些域名发到本实例由客户端 PAC/插件决定——本实例不再维护任何域名清单。
+# 节点来源与通用实例完全相同：共享 ./nodes/_merged.yaml。
+# ─────────────────────────────────────────────────────────────
+
+# mixed-port：同一端口同时支持 http 与 socks5 代理。
+# 插件 PAC 中 AI 域名指向它；CLI(HTTP_PROXY) 默认指向它。
+mixed-port: 7890
+
+# 允许局域网/其他机器连接（这是"全公司连这台服务器"的关键开关）。
+allow-lan: true
+bind-address: '*'
+
+mode: rule
+log-level: info
+
+# 管理 API（可选）：用于热重载、看节点健康状态。建议只绑本机。
+external-controller: 127.0.0.1:9090
+
+# ── 节点池：以文件 provider 方式读取你的 clash 节点 ──
+proxy-providers:
+  # 全量/通用节点池：由 scripts/build-config.sh 扫描 nodes/clash-*.yaml（+clash.yaml）
+  # 合并生成的产物；与通用实例共享同一份 _merged.yaml。
+  airport:
+    type: file
+    path: ./nodes/_merged.yaml
+    # 主动健康检查：定期探测节点可用性，挂掉的自动剔除
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 180               # 秒
+
+# ══════════════════════════════════════════════════════════════
+# 代理组：唯一一组——美国节点聚合（本实例唯一出口）
+# ══════════════════════════════════════════════════════════════
+proxy-groups:
+  # ── AI-US-STICKY（sticky-sessions，会话粘连）★ 本实例唯一出口 ──
+  # 跨机场聚合美国节点：用 filter 正则命中节点名里的美国关键词。
+  # 「美」单字已收紧为常见机场命名组合（美国/美西/美东/美优化/美专线/美线），
+  # 避免「完美」「美容」等含美字但非美国节点的误命中；「广美」保留（广州-美国专线）。
+  # US 加词边界 \\bUS\\b，避免 Russia/BONUS 等含 us 的英文词误命中。
+  # exclude-filter：排除港/台/日/韩/新/深/英等地区字符与机场信息/无效节点。
+  # 「中国」「流量」不再排除：「美国-中国优化」与「美国01-禁止大流量」类节点归美国组。
+  # 含「港」的节点不归美国（如「香港-美西优化」应为香港节点）。
+  # 会话粘连：同一会话一段时间内粘同一节点，防「多账号同一 IP」被风控。
+  - name: AI-US-STICKY
+    type: load-balance
+    strategy: sticky-sessions
+    use: [airport]           # 全量池（nodes/_merged.yaml，多机场合并产物）
+    filter: "(?i)(美国落地|广美|美国|美西|美东|美优化|美专线|美线|\\bUS\\b|纽约|波特兰|达拉斯|俄勒|凤凰城|费利蒙|拉斯|洛杉|圣何塞|圣克拉|西雅|芝加|🇺🇸|United States)"
+    exclude-filter: "(?i)(测试|Pv|VPN|剩余|到期|过期|官网|重置|订阅|expire|traffic|港|台|日|韩|新|深|英)"
+    url: https://www.gstatic.com/generate_204
+    interval: 60
+    lazy: true
+
+# ══════════════════════════════════════════════════════════════
+# 路由规则：唯一一条 MATCH 兜底——发到本实例的流量一律美国出口。
+# （AI 域名判定由客户端 PAC/插件完成，发到 7890 的流量默认全是 AI 域名。）
+# ══════════════════════════════════════════════════════════════
+rules:
+  - MATCH,AI-US-STICKY
+
+# ── 迁移期兼容（默认启用，插件侧端口切换完成后移除）──────────
+# 旧插件 PAC 硬编码 10800；用 mihomo 官方 listeners 入站段额外监听，
+# 流量进入全局 rules 命中 MATCH → AI-US-STICKY（美国出口），语义与主端口一致。
+# ⚠ 必须用 listeners 段：mihomo 不存在顶层 ports 字段（那是 Surge 语法，
+#   写了会被忽略、过渡监听静默失效）。插件侧端口切换完成后的下一变更移除本段。
+listeners:
+  - name: legacy-10800
+    type: mixed
+    port: 10800
+    listen: 0.0.0.0

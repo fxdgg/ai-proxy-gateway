@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # 查看网关(mihomo)最新日志，可选关键字过滤并持续跟踪。
+# 双实例：gateway-ai（AI 实例）/ gateway-main（通用实例，默认）。
 # 用法:
-#   ./scripts/logs.sh              # 跟踪最新日志(默认最近 200 行起)
+#   ./scripts/logs.sh              # 跟踪通用实例(gateway-main)日志(默认最近 200 行起)
 #   ./scripts/logs.sh claude       # 只显示含 "claude" 的行(忽略大小写)并跟踪
 #   ./scripts/logs.sh claude 500   # 从最近 500 行里过滤并继续跟踪
 #   ./scripts/logs.sh "" 500       # 不过滤，看最近 500 行
 #   ./scripts/logs.sh error 300 pac  # 看 pac 服务日志里含 error 的行
+#   ./scripts/logs.sh error 300 gateway-ai  # 看 AI 实例日志里含 error 的行
 set -uo pipefail
 
 KEYWORD="${1:-}"
 TAIL="${2:-200}"
-SERVICE="${3:-gateway}"
+SERVICE="${3:-gateway-main}"
 
 # 兼容 docker compose(v2) 与 docker-compose(v1)
 if docker compose version >/dev/null 2>&1; then

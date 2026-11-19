@@ -1,12 +1,24 @@
 # ───────────────────────────────────────────────────────────────
-# 把你现成的 clash 节点 YAML 放成本目录下的 clash.yaml
-#   cp /你的/clash订阅.yaml ./nodes/clash.yaml
+# 多机场部署：每个机场一个文件，命名 nodes/clash-<id>.yaml
+#   <id> 为机场标识（小写字母/数字/连字符），例如：
+#     cp /你的/机场A订阅.yaml ./nodes/clash-a.yaml
+#     cp /你的/机场B订阅.yaml ./nodes/clash-b.yaml    # 数量不限，脚本自动发现、无需登记
+#   旧名 nodes/clash.yaml（不带 <id>）仍兼容，视为「默认机场」，
+#   与 clash-<id>.yaml 并存时都参与合并。
 #
-# mihomo 的 file provider 只读取本文件里的 `proxies:` 段，
-# 因此无论你的文件是「订阅式（只有 proxies）」还是「完整 clash 配置
-# （含 proxy-groups / rules）」都能直接用——多余的字段会被忽略。
+# 订阅式 vs 完整配置式：两种都能直接用。
+#   mihomo 的 file provider 只读取本文件里的 `proxies:` 段，因此无论你的
+#   文件是「订阅式（只有 proxies）」还是「完整 clash 配置（含 proxy-groups /
+#   rules）」，多余的字段都会被忽略。机场节点写成单行内联 JSON
+#   （- {"name":"...","type":"ss",...}）或展开式 YAML（- name: xxx）也都支持。
 #
-# 下面是格式示例（真实节点请勿提交到 git，见 .gitignore）：
+# 约定：
+#   · 跨机场【节点名不得重复】：scripts/build-config.sh 合并时检测到重名会
+#     报错退出，请在其中一处改名后重跑（脚本不自动加前缀，避免破坏 dialer-proxy 引用）。
+#   · 本 example 文件不参与合并（脚本排除 *.example.yaml）。
+#   · 真实节点请勿提交到 git（nodes/*.yaml 已被 .gitignore 忽略，见 .gitignore）。
+#
+# 下面是格式示例：
 # ───────────────────────────────────────────────────────────────
 proxies:
   - name: "示例-香港-01"

@@ -1,0 +1,20 @@
+{
+  "agent_calls_used": 10,
+  "change_id": "country-routing-gateway",
+  "completed_steps": [
+    "2-architect",
+    "3-reviewer-a-r1",
+    "3-reviewer-b-r1",
+    "2-architect-rev2",
+    "3-reviewer-a-r2",
+    "3-reviewer-b-r2",
+    "2-architect-rev3",
+    "3-reviewer-a-r3",
+    "3-reviewer-b-r3",
+    "5-reviewer"
+  ],
+  "created_at": "2026-11-19T00:00:00Z",
+  "current_step": "pipeline-running",
+  "max_agent_calls": 60,
+  "updated_at": "2026-11-19T06:49:04Z"
+}

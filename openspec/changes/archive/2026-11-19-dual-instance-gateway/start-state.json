@@ -1,0 +1,18 @@
+{
+  "agent_calls_used": 8,
+  "change_id": "dual-instance-gateway",
+  "completed_steps": [
+    "2-architect",
+    "3-reviewer-a-r1",
+    "3-reviewer-b-r1",
+    "2-architect-rev2",
+    "3-reviewer-a-r2",
+    "3-reviewer-b-r2",
+    "2-architect-rev3",
+    "2-architect-final"
+  ],
+  "created_at": "2026-11-19T00:00:00Z",
+  "current_step": "pipeline-running",
+  "max_agent_calls": 60,
+  "updated_at": "2026-11-19T09:59:53Z"
+}

@@ -4,12 +4,13 @@
 # CLI 工具(Claude Code/Codex)不走系统代理，请用环境变量 HTTPS_PROXY(见 claude-code-setup.sh)。
 #
 # 用法: ./macos-proxy-manual-on.sh [host] [port] [网络服务名]
-#   默认 host=9.135.113.95 port=10800 服务名=Wi-Fi
+#   默认 host=10.1.31.132 port=7891 服务名=Wi-Fi
+#   port 默认指向通用实例(7891)；AI 实例为 7890。
 #   服务名可用 `networksetup -listallnetworkservices` 查看(有线常为 Ethernet)
 set -euo pipefail
 
-HOST="${1:-9.135.113.95}"
-PORT="${2:-10800}"
+HOST="${1:-10.1.31.132}"
+PORT="${2:-7891}"
 SERVICE="${3:-Wi-Fi}"
 
 echo "为 [$SERVICE] 设置手动代理 $HOST:$PORT (http + https)"

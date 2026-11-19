@@ -1,13 +1,16 @@
-// proxy.pac —— 全局代理模型：把流量交给网关，由服务端 mihomo 全权判定路由
-// （AI 固定出口 / 其他海外轮询 / 国内直连 / 广告拦截，全在 config.yaml 的 rules）。
-// 由 nginx envsubst 将 ${GATEWAY_ADDR} 替换为真实网关地址(见 .env)。
+// proxy.pac —— 双实例双端口分流模型：
+//   AI 类海外站（静态核心清单，见下）→ AI 出口实例（7890，美国出口，会话粘连）
+//   其余流量 → 通用实例（7891：内网/国内直连 + 广告拦截 + 香港出口兜底）
+// 由 nginx envsubst 将 ${AI_GATEWAY_ADDR} / ${GATEWAY_ADDR} 替换为真实网关地址(见 .env)。
 //
-// 全局模型下客户端不再维护任何域名清单：所有请求都发到网关，mihomo 决定去向。
-// 好处：AI 站清单等全部由服务端 rule-providers 自动更新，客户端零人肉维护。
+// ⚠ 本文件会被 nginx 官方 entrypoint 的 envsubst 处理：除上方两个注入点外，
+//   JS 代码中不得出现任何美元花括号形式的变量占位符（envsubst 会把 JS 模板
+//   字符串误替换为空、损坏 PAC 语法）；JS 内需拼接字符串处一律用 + 连接。
 //
 // DIRECT 兜底开关：默认 "PROXY 网关; DIRECT" —— 网关不可达时直连，不至于断网。
 // 如需"网关挂了就直接失败"，删掉 "; DIRECT"。
 function FindProxyForURL(url, host) {
+  var AI_PROXY_STR = "PROXY ${AI_GATEWAY_ADDR}; DIRECT";
   var PROXY_STR = "PROXY ${GATEWAY_ADDR}; DIRECT";
 
   // 本机/内网/回环：始终直连，绝不发往网关
@@ -23,8 +26,35 @@ function FindProxyForURL(url, host) {
     return "DIRECT";
   }
 
-  // 其余全部交给网关，由 mihomo 决定 AI固定/海外轮询/国内直连/拦截。
-  // ——可选优化：若不想让国内流量也绕行网关，可在此加载国内域名/IP 直连判断，
-  //   但那会把大清单塞回客户端，与"服务端全权、客户端零维护"相悖，一般不建议。
+  // ── 静态核心 AI 域名清单（15 个）→ AI 出口实例（7890，美国出口）────
+  // 全部用 dnsDomainIs(host, 裸域) 匹配：该函数语义即「host 与裸域相等或以
+  // "." + 裸域 结尾」，覆盖裸域及其全部子域——
+  // openai.com / anthropic.com / claude.ai 三条由旧 DOMAIN-KEYWORD 裸域化而来，
+  // 必须保持此覆盖范围（不能退化为仅精确匹配主域，否则 api.openai.com 等子域会丢失）。
+  // 清单口径：旧内联兜底保留项 10 个 + 插件 defaultProxyDomains 独有项 4 个
+  //   （coze/meta.ai/oaistatic/oaiusercontent；已剔除超宽的 google.com 裸域）
+  //   + 旧远程 Perplexity 规则集核心站 1 个（perplexity.ai，回退保留项）。
+  // 插件侧默认清单变更时，本清单需同步（跨仓库一致性检查项）。
+  if (
+    dnsDomainIs(host, "openai.com") ||
+    dnsDomainIs(host, "anthropic.com") ||
+    dnsDomainIs(host, "claude.ai") ||
+    dnsDomainIs(host, "chatgpt.com") ||
+    dnsDomainIs(host, "gemini.google.com") ||
+    dnsDomainIs(host, "aistudio.google.com") ||
+    dnsDomainIs(host, "x.ai") ||
+    dnsDomainIs(host, "grok.com") ||
+    dnsDomainIs(host, "cursor.com") ||
+    dnsDomainIs(host, "cursor.sh") ||
+    dnsDomainIs(host, "coze.com") ||
+    dnsDomainIs(host, "meta.ai") ||
+    dnsDomainIs(host, "oaistatic.com") ||
+    dnsDomainIs(host, "oaiusercontent.com") ||
+    dnsDomainIs(host, "perplexity.ai")
+  ) {
+    return AI_PROXY_STR;
+  }
+
+  // 其余流量 → 通用实例（7891）：mihomo 判定内网/国内直连、广告拦截、香港出口兜底。
   return PROXY_STR;
 }
