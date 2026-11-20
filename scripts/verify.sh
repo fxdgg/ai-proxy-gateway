@@ -317,11 +317,12 @@ check_instance "main" "$MAIN_API" "$MAIN_GATEWAY" "$MAIN_GROUP_PATTERN" || overa
 hr
 if [ "$overall_fail" -eq 1 ]; then
   echo "验证结束：❌ 存在硬性失败项（实例默认出口组为空或出口连不通），请按上面的告警逐项排查。"
+  echo "排查提示（仅当上方出现对应告警时适用）："
+  echo "· AI 实例出口组（组名含 AI）为空 → 检查机场节点命名是否含「美国/US」关键词（config-ai.yaml 的 filter 正则）。"
+  echo "· 通用实例出口组（组名含 HK/香港）为空 → 检查节点命名与 config-main.yaml 的香港正则 filter。"
+  echo "· 若需要「静态住宅 IP」而上面判定为机房 IP → 你的机场节点是数据中心节点，"
+  echo "  需改用住宅代理节点（节点名含「美国」，见 README 节点命名要求——这是节点来源问题，非本网关配置问题）。"
   exit 1
 fi
 echo "验证结束。"
-echo "· AI 实例出口组（组名含 AI）为空 → 检查机场节点命名是否含「美国/US」关键词（config-ai.yaml 的 filter 正则）。"
-echo "· 通用实例出口组（组名含 HK/香港）为空 → 检查节点命名与 config-main.yaml 的香港正则 filter。"
-echo "· 若需要「静态住宅 IP」而上面判定为机房 IP → 你的机场节点是数据中心节点，"
-echo "  需改用住宅代理节点（节点名含「美国」，见 README 节点命名要求——这是节点来源问题，非本网关配置问题）。"
 exit 0
