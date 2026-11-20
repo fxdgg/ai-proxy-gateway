@@ -129,6 +129,9 @@ proxy-groups:
 # ══════════════════════════════════════════════════════════════
 rules:
   # ── 内网/私有地址直连 ──
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
   - RULE-SET,Private,DIRECT
   # ── 广告/恶意域名拦截 ──
   - RULE-SET,Block,REJECT
