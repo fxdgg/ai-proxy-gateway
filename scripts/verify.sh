@@ -82,13 +82,26 @@ check_trace() {
   local name="$1" domain="$2" gateway="$3"
   hr
   echo "▶ ${name}（${domain}）能否使用："
-  local trace code loc aip info aorg
-  code=$(curl -s -x "http://$gateway" -o /dev/null -w '%{http_code}' --max-time 20 "https://$domain/cdn-cgi/trace" 2>/dev/null)
-  trace=$(curl -fsS -x "http://$gateway" --max-time 20 "https://$domain/cdn-cgi/trace" 2>/dev/null)
+  local resp trace code loc aip info aorg
+  # 一次 curl 同时取响应体与状态码（-w 追加末尾），避免两次独立请求在 sticky 代理下
+  # 粘到不同节点造成「状态码与响应体割裂」的误判
+  resp=$(curl -s -x "http://$gateway" --max-time 20 -w '\n%{http_code}' "https://$domain/cdn-cgi/trace" 2>/dev/null)
+  code=$(printf '%s' "$resp" | tail -n 1)
+  # 依赖命令替换 $(...) 剥除尾随换行：body 为空时 trace 为真空串，使下方 -z 判定成立
+  trace=$(printf '%s' "$resp" | sed '$d')
   if [ -z "$trace" ]; then
     echo "  ✗ 无法连通（HTTP ${code:-超时}）：检查该实例节点是否可用，或该站是否被封锁。"
     return 1
   fi
+  # 状态码校验：4xx/5xx（如 Cloudflare 1020/403 风控拦截页）即使有响应体也判失败，
+  # 保持与原 curl -f 行为一致的语义（拦截页是网关最需要暴露的故障模式）
+  case "$code" in
+    2??|3??) ;;
+    *)
+      echo "  ✗ 无法连通（HTTP ${code}，非 2xx/3xx，疑似风控拦截或错误页）：检查该实例节点是否可用，或该站是否被封锁。"
+      return 1
+      ;;
+  esac
   loc=$(printf '%s' "$trace" | awk -F= '/^loc=/{print $2}')
   aip=$(printf '%s' "$trace" | awk -F= '/^ip=/{print $2}')
   echo "  连通: ✓ HTTP ${code}    出口地区 loc=${loc:-未知}    出口 IP=${aip:-未知}"
@@ -151,10 +164,11 @@ check_instance() {
     else
       while IFS= read -r p; do
         [ -n "$p" ] || continue
-        # 节点数优先取 provider 自身统计，缺失时遍历 proxies
+        # 节点数取 provider 的 proxies 列表长度（mihomo API 中为数组，兼容 object 形态）
         cnt=$(printf '%s' "$providers_json" | jq -r --arg p "$p" '
           (.providers | if type == "array" then map(select(.name == $p))[0] else .[$p] end)
           | if . == null then "N/A"
+            elif (.proxies | type) == "array" then (.proxies | length | tostring)
             elif (.proxies | type) == "object" then (.proxies | length | tostring)
             else "N/A" end
         ' 2>/dev/null)
