@@ -88,11 +88,11 @@ proxy-groups:
     # 已移除「美」「深」的排除：「香港+美」类节点（如香港-美西优化）、
     # 「香港-深圳优化」类节点应归香港组；纯美国/深圳节点因不含香港关键词，
     # filter 不命中，天然不进本组。
+    # 不开 lazy：组启动即健康检查，坏节点快速被剔除，避免流量粘到刚挂的节点。
     filter: "(?i)(香港落地|广港|香港|HK|Hong ?Kong|🇭🇰|Hong)"
     exclude-filter: "(?i)(禁止大流量|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|台|日|韩|新)"
     url: https://www.gstatic.com/generate_204
     interval: 60
-    lazy: true
 
   # ── 组②：HK-STICKY（sticky-sessions）★ 默认出口用这个 ──
   # 跨机场聚合香港节点：包含香港关键词 且 排除台/日/韩/新地区字符及机场信息/无效节点。
@@ -100,6 +100,7 @@ proxy-groups:
   # 「香港-深圳优化」类节点应归香港组；纯美国/深圳节点因不含香港关键词，
   # filter 不命中，天然不进本组。
   # 作为 rules 里 MATCH 的兜底目标（默认出口）。
+  # 不开 lazy：组启动即健康检查，坏节点快速被剔除，避免流量粘到刚挂的节点。
   - name: HK-STICKY
     type: load-balance
     strategy: sticky-sessions
@@ -108,7 +109,6 @@ proxy-groups:
     exclude-filter: "(?i)(禁止大流量|测试|Pv|VPN|剩余|流量|到期|过期|官网|重置|订阅|台|日|韩|新)"
     url: https://www.gstatic.com/generate_204
     interval: 60
-    lazy: true
 
   # ── 组③：RELAY-POOL（中转代理组，链式代理用）——可选 ──
   # 给"落地节点"当前置中转用：一组中转节点，url-test 自动选延迟最低的那个，挂了自动换。
