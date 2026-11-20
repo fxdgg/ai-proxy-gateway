@@ -8,9 +8,9 @@
 #    仅「列出应存在的 provider / 组」并提示无法运行时确认（verify 是诊断工具，不硬失败）。
 #
 # 双实例硬性检查（设计决策 7）：
-#  · AI 实例：组名含 AI 的组非空 + 出口连通（ipinfo + claude/chatgpt cdn-cgi/trace，
-#    可连通即通过、出口地区 loc 仅参考）。
-#  · 通用实例：组名含 HK/香港 的组非空 + 默认出口连通。
+#  · AI 实例：组名含 AI 的组非空 + claude/chatgpt 的 cdn-cgi/trace 可连通即通过
+#    （出口地区 loc 仅参考）；ipinfo 出口查询仅作信息展示，失败/限流只告警。
+#  · 通用实例：组名含 HK/香港 的组非空 + 默认出口连通（cloudflare cdn-cgi/trace）。
 #  · 任一实例硬失败 → 非零退出。
 #
 # 用法: ./scripts/verify.sh [AI_API] [MAIN_API] [AI_GATEWAY] [MAIN_GATEWAY]
@@ -262,20 +262,32 @@ check_instance() {
     fi
   fi
 
-  # ── 3. 出口连通性（等价于终端设 HTTP_PROXY 后 curl ipinfo.io）──
+  # ── 3. 出口信息展示（等价于终端设 HTTP_PROXY 后 curl ipinfo.io）──
+  # ipinfo.io 免费额度对共享数据中心出口常返回 HTTP 429 限流，故本检查降级为
+  # 出口信息展示：失败仅告警、不计入硬性失败（网关可用性由后续 Claude/ChatGPT/
+  # Cloudflare 连通性检查兜底判定）。
   hr
   echo "▶ 实例 [$label] 出口（curl -x $gateway ipinfo.io）："
-  local ipinfo ip org
-  ipinfo=$(curl -fsS -x "http://$gateway" --max-time 20 https://ipinfo.io/json 2>/dev/null)
-  if [ -n "$ipinfo" ]; then
-    ip=$(printf '%s' "$ipinfo" | jq -r '.ip' 2>/dev/null)
-    org=$(printf '%s' "$ipinfo" | jq -r '.org' 2>/dev/null)
-    echo "  IP: ${ip}   地区: $(printf '%s' "$ipinfo" | jq -r '"\(.country) \(.region) \(.city)"' 2>/dev/null)"
-    echo "  ISP/组织: ${org}"
-    echo "  ▶ 类型判定: $(classify_org "$org")"
+  local ipinfo ip org ip_code
+  ipinfo=$(curl -s -x "http://$gateway" --max-time 20 -w '\n%{http_code}' https://ipinfo.io/json 2>/dev/null)
+  ip_code=$(printf '%s' "$ipinfo" | tail -n 1)
+  ipinfo=$(printf '%s' "$ipinfo" | sed '$d')
+  if [ "$ip_code" = "200" ] && [ -n "$ipinfo" ]; then
+    ip=$(printf '%s' "$ipinfo" | jq -r '.ip // empty' 2>/dev/null)
+    if [ -n "$ip" ]; then
+      org=$(printf '%s' "$ipinfo" | jq -r '.org // empty' 2>/dev/null)
+      echo "  IP: ${ip}   地区: $(printf '%s' "$ipinfo" | jq -r '"\(.country) \(.region) \(.city)"' 2>/dev/null)"
+      echo "  ISP/组织: ${org}"
+      echo "  ▶ 类型判定: $(classify_org "$org")"
+    else
+      warn "ipinfo 出口查询失败（HTTP 200 但无 ip 字段），仅影响出口展示。"
+    fi
   else
-    echo "  ✗ 经网关 [$gateway] 请求失败：检查实例 [$label] 是否在 $gateway 监听、节点是否可用。"
-    fail=1
+    if [ "$ip_code" = "429" ]; then
+      warn "ipinfo 出口查询被限流（HTTP 429，共享数据中心出口常见现象）。"
+    else
+      warn "ipinfo 出口查询失败（HTTP ${ip_code:-超时}）：仅影响出口展示，网关可用性以连通性检查为准。"
+    fi
   fi
 
   # AI 实例：Claude / ChatGPT 连通性；通用实例：默认出口连通性
